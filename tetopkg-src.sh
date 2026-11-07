@@ -96,7 +96,6 @@ else
         echo ":: Exe installer payload detected, placing installer in buildroot..."
         EXE_TARGET="${main_exe:-installer.exe}"
         cp payload.bin "buildroot/${EXE_TARGET}"
-        [ "$EXE_TARGET" != "installer.exe" ] && cp payload.bin buildroot/installer.exe
     fi
     echo "Package: ${pkgname}" > buildroot/.manifest
     echo "Type: bundled" >> buildroot/.manifest

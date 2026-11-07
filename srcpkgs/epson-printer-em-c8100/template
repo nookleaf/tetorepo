@@ -1,0 +1,12 @@
+pkgname=epson-printer-em-c8100
+version=1.0.0
+revision=1
+short_desc="Epson EM-C8100 Printer Driver"
+maintainer="Kasane Teto <teto@tetopkg>"
+license="Proprietary"
+homepage="https://www.epson.com/"
+distfiles="https://pub.moedev.eu.org/EpsonDrivers/Epson.EM-C8100.x64.exe"
+installer_type="exe"
+installer_flavor="/s"
+arch="x86_64"
+main_exe="Epson.EM-C8100.x64.exe"

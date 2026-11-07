@@ -15,7 +15,7 @@ mkdir -p "$WORKDIR/buildroot"
 cd "$WORKDIR"
 
 echo ":: Downloading distfile..."
-curl -fL -o payload.bin "$distfiles"
+curl -fL --retry 5 --retry-delay 3 --retry-all-errors -C - -o payload.bin "$distfiles"
 
 # 1. Validasi hasil download
 if stat -c%s payload.bin >/dev/null 2>&1; then
@@ -53,7 +53,9 @@ if [ "$TYPE" = "zip" ]; then
     fi
 else
     echo ":: Exe installer payload detected, placing installer in buildroot..."
-    cp payload.bin buildroot/installer.exe
+    EXE_TARGET="${main_exe:-installer.exe}"
+    cp payload.bin "buildroot/${EXE_TARGET}"
+    [ "$EXE_TARGET" != "installer.exe" ] && cp payload.bin buildroot/installer.exe
 fi
 
 # 2. Validasi hasil extract/buildroot
@@ -78,6 +80,8 @@ if [ "$FILE_COUNT" -eq 0 ] || [ "$EXTRACTED_SIZE" -eq 0 ]; then
 fi
 
 echo ":: Generating TETOBUILD..."
+flavor_escaped="${installer_flavor//\\/\\\\}"
+flavor_escaped="${flavor_escaped//\"/\\\"}"
 cat > TETOBUILD <<EOF
 [meta]
 pkgname = "${pkgname}"
@@ -92,7 +96,7 @@ shortcut_name = "${shortcut_name:-${pkgname}}"
 installer_type = "${TYPE}"
 installer_url = "${distfiles}"
 installer_sha256 = "${INSTALLER_SHA256}"
-installer_flavor = "${installer_flavor//\\/\\\\}"
+installer_flavor = "${flavor_escaped}"
 
 [deps]
 depends = []

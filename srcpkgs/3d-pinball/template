@@ -1,0 +1,12 @@
+pkgname=3d-pinball
+version=1.0.0
+revision=1
+short_desc="3D Pinball for Windows - Space Cadet"
+maintainer="Iqbal Rifai <yukifag@proton.me>"
+license="Commercial"
+homepage="https://microsoft.com"
+distfiles="https://pub.moedev.eu.org/Petani/3DPinball.tani"
+installer_type="exe"
+installer_flavor="/S"
+arch="x86_64"
+main_exe="3DPinball.exe"

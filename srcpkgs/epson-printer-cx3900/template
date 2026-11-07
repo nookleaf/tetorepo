@@ -1,0 +1,12 @@
+pkgname=epson-printer-cx3900
+version=6.53
+revision=1
+short_desc="Epson CX3900 Printer Driver"
+maintainer="Kasane Teto <teto@tetopkg>"
+license="Proprietary"
+homepage="https://www.epson.com/"
+distfiles="https://pub.moedev.eu.org/EpsonDrivers/Epson.CX3900.6.53.Printer.x64.exe"
+installer_type="exe"
+installer_flavor="/s"
+arch="x86_64"
+main_exe="Epson.CX3900.6.53.Printer.x64.exe"

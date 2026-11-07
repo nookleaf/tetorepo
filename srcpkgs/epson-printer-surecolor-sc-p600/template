@@ -1,0 +1,12 @@
+pkgname=epson-printer-surecolor-sc-p600
+version=1.0.0
+revision=1
+short_desc="Epson SURECOLOR-SC-P600 Printer Driver"
+maintainer="Kasane Teto <teto@tetopkg>"
+license="Proprietary"
+homepage="https://www.epson.com/"
+distfiles="https://pub.moedev.eu.org/EpsonDrivers/Epson.SureColor.SC-P600.Printer.x64.exe"
+installer_type="exe"
+installer_flavor="/s"
+arch="x86_64"
+main_exe="Epson.SureColor.SC-P600.Printer.x64.exe"

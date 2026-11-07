@@ -1,0 +1,12 @@
+pkgname=directx
+version=9.29.1974
+revision=1
+short_desc="Microsoft DirectX End-User Runtimes"
+maintainer="Kasane Teto <teto@tetopkg>"
+license="Freeware"
+homepage="https://www.microsoft.com/"
+distfiles="https://pub.moedev.eu.org/Games/DirectX.exe"
+installer_type="exe"
+installer_flavor="/S"
+arch="x86_64"
+main_exe="DirectX.exe"

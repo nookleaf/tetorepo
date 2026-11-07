@@ -1,11 +1,11 @@
 pkgname=vcredist
-version=latest
+version=0.106.0
 revision=1
 short_desc="Visual C++ Redist AIO"
 maintainer="Shrek Medan"
 license="Freeware"
-homepage="https://www.microsoft.com/"
-distfiles="https://kutt.to/vcpp"
+homepage="https://github.com/abbodi1406/vcredist"
+distfiles="https://github.com/abbodi1406/vcredist/releases/download/v0.106.0/VisualCppRedist_AIO_x86_x64.exe"
 installer_type="exe"
 installer_flavor="/ai /gm2"
 arch="x86_64"

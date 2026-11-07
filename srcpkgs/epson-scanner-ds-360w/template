@@ -1,0 +1,12 @@
+pkgname=epson-scanner-ds-360w
+version=6.5.22.0
+revision=1
+short_desc="Epson DS-360W Scanner Driver"
+maintainer="Kasane Teto <teto@tetopkg>"
+license="Proprietary"
+homepage="https://www.epson.com/"
+distfiles="https://pub.moedev.eu.org/EpsonDrivers/Epson.DS-360W.6.5.22.0.Printer.x64.exe"
+installer_type="exe"
+installer_flavor="/s"
+arch="x86_64"
+main_exe="Epson.DS-360W.6.5.22.0.Printer.x64.exe"

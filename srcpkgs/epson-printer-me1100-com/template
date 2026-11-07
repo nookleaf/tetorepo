@@ -1,0 +1,12 @@
+pkgname=epson-printer-me1100-com
+version=1.0.0
+revision=1
+short_desc="Epson ME1100-COM Printer Driver"
+maintainer="Kasane Teto <teto@tetopkg>"
+license="Proprietary"
+homepage="https://www.epson.com/"
+distfiles="https://pub.moedev.eu.org/EpsonDrivers/Epson.ME1100.x64.com.exe"
+installer_type="exe"
+installer_flavor="/s"
+arch="x86_64"
+main_exe="Epson.ME1100.x64.com.exe"

@@ -1,0 +1,12 @@
+pkgname=Winaero.WindowsVistaGames
+version=1.0.0
+revision=1
+short_desc="Windows Vista Games for Windows 10 and 11"
+maintainer="Kasane Teto <teto@tetopkg>"
+license="Freeware"
+homepage="https://winaero.com/"
+distfiles="https://pub.moedev.eu.org/Petani/WinVistaGames.tani"
+installer_type="exe"
+installer_flavor="/VERYSILENT"
+arch="x86_64"
+main_exe="WinVistaGames.exe"

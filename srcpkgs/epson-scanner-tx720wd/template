@@ -1,0 +1,12 @@
+pkgname=epson-scanner-tx720wd
+version=1.0.0
+revision=1
+short_desc="Epson TX720WD Scanner Driver"
+maintainer="Kasane Teto <teto@tetopkg>"
+license="Proprietary"
+homepage="https://www.epson.com/"
+distfiles="https://pub.moedev.eu.org/EpsonDrivers/Epson.TX720WD.Scanner.exe"
+installer_type="exe"
+installer_flavor="/s"
+arch="x86_64"
+main_exe="Epson.TX720WD.Scanner.exe"

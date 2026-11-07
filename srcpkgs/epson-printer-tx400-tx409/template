@@ -1,0 +1,12 @@
+pkgname=epson-printer-tx400-tx409
+version=1.0.0
+revision=1
+short_desc="Epson TX400-TX409 Printer Driver"
+maintainer="Kasane Teto <teto@tetopkg>"
+license="Proprietary"
+homepage="https://www.epson.com/"
+distfiles="https://pub.moedev.eu.org/EpsonDrivers/Epson.TX400.TX409.x64.exe"
+installer_type="exe"
+installer_flavor="/s"
+arch="x86_64"
+main_exe="Epson.TX400.TX409.x64.exe"

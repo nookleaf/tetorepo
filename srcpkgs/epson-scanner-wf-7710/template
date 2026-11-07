@@ -1,0 +1,12 @@
+pkgname=epson-scanner-wf-7710
+version=1.0.0
+revision=1
+short_desc="Epson WF-7710 Scanner Driver"
+maintainer="Kasane Teto <teto@tetopkg>"
+license="Proprietary"
+homepage="https://www.epson.com/"
+distfiles="https://pub.moedev.eu.org/EpsonDrivers/Epson.WF-7710.Scanner.exe"
+installer_type="exe"
+installer_flavor="/s"
+arch="x86_64"
+main_exe="Epson.WF-7710.Scanner.exe"

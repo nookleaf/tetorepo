@@ -1,0 +1,12 @@
+pkgname=epson-printer-c6550p
+version=1.0.0
+revision=1
+short_desc="Epson C6550P Printer Driver"
+maintainer="Kasane Teto <teto@tetopkg>"
+license="Proprietary"
+homepage="https://www.epson.com/"
+distfiles="https://pub.moedev.eu.org/EpsonDrivers/Epson.C6550P.x64.exe"
+installer_type="exe"
+installer_flavor="/s"
+arch="x86_64"
+main_exe="Epson.C6550P.x64.exe"

@@ -143,7 +143,8 @@ jobs:
             --endpoint-url "${{ secrets.R2_ENDPOINT }}"
 
           python3 gen-index.py repo/x86_64/packages repo/x86_64/index.toml \
-            "tetopkg-main" "Official tetopkg repository" --srcpkgs srcpkgs --prune-files
+            "tetopkg-main" "Official tetopkg repository" \
+            --srcpkgs srcpkgs --prune-files --repo-url "https://teto.0x80.eu.org/x86_64/"
 
           aws s3 sync repo/x86_64/packages/ "s3://${{ secrets.R2_BUCKET }}/x86_64/packages/" \
             --delete \

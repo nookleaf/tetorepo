@@ -104,7 +104,7 @@ def main():
     )
     parser.add_argument(
         "--repo-url",
-        default="https://repository.eu.org/x86_64/",
+        default="https://teto.0x80.eu.org/x86_64/",
         help="Repository base URL",
     )
 

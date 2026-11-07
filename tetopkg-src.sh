@@ -14,51 +14,79 @@ rm -rf "$WORKDIR"
 mkdir -p "$WORKDIR/buildroot"
 cd "$WORKDIR"
 
-echo ":: Downloading distfile..."
-if ! curl -fL --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 20 --max-time 600 -C - -o payload.bin "$distfiles"; then
-    echo "Error: Gagal mendownload distfile dari $distfiles" >&2
-    exit 1
-fi
+THRESHOLD_BYTES=104857600 # 100 MB
 
-# 1. Validasi hasil download
-if stat -c%s payload.bin >/dev/null 2>&1; then
-    PAYLOAD_SIZE="$(stat -c%s payload.bin)"
-elif stat -f%z payload.bin >/dev/null 2>&1; then
-    PAYLOAD_SIZE="$(stat -f%z payload.bin)"
+# Cek Content-Length secara cepat via HEAD request
+REMOTE_SIZE=$(curl -sIL --connect-timeout 15 -A "Mozilla/5.0" "$distfiles" 2>/dev/null | tr -d '\r' | awk '/^[Cc]ontent-[Ll]ength:/ {print $2}' | tail -n 1 || echo "")
+REMOTE_SIZE="${REMOTE_SIZE//[!0-9]/}"
+
+IS_MANIFEST_ONLY=0
+
+if [ -n "$REMOTE_SIZE" ] && [ "$REMOTE_SIZE" -gt "$THRESHOLD_BYTES" ] 2>/dev/null; then
+    echo ":: Remote distfile is >100MB (${REMOTE_SIZE} bytes). Using Manifest-Only packaging mode (no binary payload bundled)."
+    IS_MANIFEST_ONLY=1
+    INSTALLER_SHA256="skip"
 else
-    PAYLOAD_SIZE="$(wc -c < payload.bin | tr -d ' ')"
-fi
+    echo ":: Downloading distfile..."
+    if ! curl -fL --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 20 --max-time 600 -C - -o payload.bin "$distfiles"; then
+        echo "Error: Gagal mendownload distfile dari $distfiles" >&2
+        exit 1
+    fi
 
-if [ "$PAYLOAD_SIZE" -lt 1024 ]; then
-    echo "Error: File payload.bin terlalu kecil (${PAYLOAD_SIZE} bytes). Kemungkinan URL redirect ke halaman error/HTML, bukan file installer asli." >&2
-    exit 1
-fi
+    # 1. Validasi hasil download
+    if stat -c%s payload.bin >/dev/null 2>&1; then
+        PAYLOAD_SIZE="$(stat -c%s payload.bin)"
+    elif stat -f%z payload.bin >/dev/null 2>&1; then
+        PAYLOAD_SIZE="$(stat -f%z payload.bin)"
+    else
+        PAYLOAD_SIZE="$(wc -c < payload.bin | tr -d ' ')"
+    fi
 
-echo ":: Downloaded payload.bin (${PAYLOAD_SIZE} bytes)"
+    if [ "$PAYLOAD_SIZE" -lt 1024 ]; then
+        echo "Error: File payload.bin terlalu kecil (${PAYLOAD_SIZE} bytes). Kemungkinan URL redirect ke halaman error/HTML, bukan file installer asli." >&2
+        exit 1
+    fi
 
-echo ":: Calculating SHA256 checksum..."
-if command -v sha256sum >/dev/null 2>&1; then
-    INSTALLER_SHA256="$(sha256sum payload.bin | awk '{print $1}')"
-elif command -v shasum >/dev/null 2>&1; then
-    INSTALLER_SHA256="$(shasum -a 256 payload.bin | awk '{print $1}')"
-else
-    INSTALLER_SHA256="$(certutil -hashfile payload.bin SHA256 | sed -n '2p' | tr -d ' \r\n')"
+    echo ":: Downloaded payload.bin (${PAYLOAD_SIZE} bytes)"
+
+    if [ "$PAYLOAD_SIZE" -gt "$THRESHOLD_BYTES" ]; then
+        echo ":: Payload size (${PAYLOAD_SIZE} bytes) exceeds 100MB threshold. Using Manifest-Only packaging."
+        IS_MANIFEST_ONLY=1
+        INSTALLER_SHA256="skip"
+        rm -f payload.bin
+    else
+        echo ":: Calculating SHA256 checksum..."
+        if command -v sha256sum >/dev/null 2>&1; then
+            INSTALLER_SHA256="$(sha256sum payload.bin | awk '{print $1}')"
+        elif command -v shasum >/dev/null 2>&1; then
+            INSTALLER_SHA256="$(shasum -a 256 payload.bin | awk '{print $1}')"
+        else
+            INSTALLER_SHA256="$(certutil -hashfile payload.bin SHA256 | sed -n '2p' | tr -d ' \r\n')"
+        fi
+    fi
 fi
 
 TYPE="${installer_type:-exe}"
 
-if [ "$TYPE" = "zip" ]; then
-    echo ":: Zip installer payload detected, extracting to buildroot..."
-    if 7z x payload.bin -obuildroot >/dev/null 2>&1; then
-        echo ":: Successfully extracted zip payload."
-    else
-        unzip -q payload.bin -d buildroot 2>/dev/null || true
-    fi
+if [ "$IS_MANIFEST_ONLY" -eq 1 ]; then
+    echo ":: Creating manifest-only package descriptor in buildroot..."
+    echo "Package: ${pkgname}" > buildroot/.manifest
+    echo "Type: remote-manifest" >> buildroot/.manifest
+    echo "InstallerUrl: ${distfiles}" >> buildroot/.manifest
 else
-    echo ":: Exe installer payload detected, placing installer in buildroot..."
-    EXE_TARGET="${main_exe:-installer.exe}"
-    cp payload.bin "buildroot/${EXE_TARGET}"
-    [ "$EXE_TARGET" != "installer.exe" ] && cp payload.bin buildroot/installer.exe
+    if [ "$TYPE" = "zip" ]; then
+        echo ":: Zip installer payload detected, extracting to buildroot..."
+        if 7z x payload.bin -obuildroot >/dev/null 2>&1; then
+            echo ":: Successfully extracted zip payload."
+        else
+            unzip -q payload.bin -d buildroot 2>/dev/null || true
+        fi
+    else
+        echo ":: Exe installer payload detected, placing installer in buildroot..."
+        EXE_TARGET="${main_exe:-installer.exe}"
+        cp payload.bin "buildroot/${EXE_TARGET}"
+        [ "$EXE_TARGET" != "installer.exe" ] && cp payload.bin buildroot/installer.exe
+    fi
 fi
 
 # 2. Validasi hasil extract/buildroot
@@ -78,7 +106,6 @@ echo ":: Extract info: ${FILE_COUNT} files, ${EXTRACTED_SIZE} bytes in buildroot
 
 if [ "$FILE_COUNT" -eq 0 ] || [ "$EXTRACTED_SIZE" -eq 0 ]; then
     echo "Error: Hasil ekstraksi/instalasi kosong (0 file / 0 bytes dalam buildroot)." >&2
-    echo "Kemungkinan penyebab: installer bukan 7z-compatible archive, silent install flags salah sehingga installer gagal menulis ke buildroot, atau instalasi butuh privilege/dependency yang tidak tersedia di environment build." >&2
     exit 1
 fi
 

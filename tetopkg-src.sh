@@ -68,11 +68,19 @@ fi
 
 TYPE="${installer_type:-exe}"
 
+ACTUAL_SIZE=0
+if [ -n "$PAYLOAD_SIZE" ] && [ "$PAYLOAD_SIZE" -gt 0 ] 2>/dev/null; then
+    ACTUAL_SIZE="$PAYLOAD_SIZE"
+elif [ -n "$REMOTE_SIZE" ] && [ "$REMOTE_SIZE" -gt 0 ] 2>/dev/null; then
+    ACTUAL_SIZE="$REMOTE_SIZE"
+fi
+
 if [ "$IS_MANIFEST_ONLY" -eq 1 ]; then
     echo ":: Creating manifest-only package descriptor in buildroot..."
     echo "Package: ${pkgname}" > buildroot/.manifest
     echo "Type: remote-manifest" >> buildroot/.manifest
     echo "InstallerUrl: ${distfiles}" >> buildroot/.manifest
+    echo "InstallerSize: ${ACTUAL_SIZE}" >> buildroot/.manifest
 else
     if [ "$TYPE" = "zip" ]; then
         echo ":: Zip installer payload detected, extracting to buildroot..."
@@ -87,6 +95,10 @@ else
         cp payload.bin "buildroot/${EXE_TARGET}"
         [ "$EXE_TARGET" != "installer.exe" ] && cp payload.bin buildroot/installer.exe
     fi
+    echo "Package: ${pkgname}" > buildroot/.manifest
+    echo "Type: bundled" >> buildroot/.manifest
+    echo "InstallerUrl: ${distfiles}" >> buildroot/.manifest
+    echo "InstallerSize: ${ACTUAL_SIZE}" >> buildroot/.manifest
 fi
 
 # 2. Validasi hasil extract/buildroot
@@ -147,5 +159,37 @@ fi
 
 "$TETO_PACK_BIN" --tetobuild TETOBUILD --prefix buildroot \
     --output "${pkgname}-${version}-${revision}-${arch}.tetopkg"
+
+PKG_FILE="${pkgname}-${version}-${revision}-${arch}.tetopkg"
+if [ "$IS_MANIFEST_ONLY" -eq 1 ] && [ "$ACTUAL_SIZE" -gt 0 ] 2>/dev/null && [ -f "$PKG_FILE" ]; then
+    echo ":: Updating .PKGINFO.toml size to actual installer size: ${ACTUAL_SIZE} bytes..."
+    python3 -c "
+import tarfile, io, os, re, subprocess
+pkg = '$PKG_FILE'
+size = $ACTUAL_SIZE
+tmp_tar = pkg + '.tmp.tar'
+new_tar = pkg + '.new.tar'
+try:
+    subprocess.run(f'zstd -d \"{pkg}\" -o \"{tmp_tar}\"', shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with tarfile.open(tmp_tar, 'r') as tin:
+        with tarfile.open(new_tar, 'w') as tout:
+            for member in tin.getmembers():
+                f = tin.extractfile(member) if member.isreg() else None
+                data = f.read() if f else b''
+                if member.name in ('.PKGINFO.toml', './.PKGINFO.toml'):
+                    text = data.decode('utf-8', errors='ignore')
+                    text = re.sub(r'(?m)^size\s*=\s*\d+', f'size = {size}', text)
+                    data = text.encode('utf-8')
+                    member.size = len(data)
+                tout.addfile(member, io.BytesIO(data) if data else None)
+    subprocess.run(f'zstd -f -3 \"{new_tar}\" -o \"{pkg}\"', shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print(f':: Successfully updated .PKGINFO.toml size to {size}')
+except Exception as e:
+    print(f':: Warning: Failed to patch .PKGINFO.toml: {e}')
+finally:
+    if os.path.exists(tmp_tar): os.remove(tmp_tar)
+    if os.path.exists(new_tar): os.remove(new_tar)
+" 2>/dev/null || true
+fi
 
 echo ":: Done: ${WORKDIR}/${pkgname}-${version}-${revision}-${arch}.tetopkg"

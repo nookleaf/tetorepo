@@ -14,25 +14,53 @@ import argparse
 import tomllib  # python 3.11+
 import tomli_w  # pip install tomli_w
 
-try:
-    from packaging.version import parse as parse_version
-except ImportError:
-    def parse_version(ver_str: str):
-        nums = [int(n) for n in re.findall(r'\d+', str(ver_str))]
-        if nums:
-            return tuple(nums)
-        return (str(ver_str),)
+def parse_version_key(ver_str: str):
+    tokens = []
+    for part in re.split(r'([0-9]+)', str(ver_str)):
+        if not part:
+            continue
+        if part.isdigit():
+            tokens.append((0, int(part), ""))
+        else:
+            tokens.append((1, 0, part.lower()))
+    return tuple(tokens)
 
 def get_pkg_version_key(pkg_entry: dict):
     pkg = pkg_entry["package"]
     ver = pkg.get("version", "0.0.0")
-    pkgrel = pkg.get("pkgrel", 1)
     try:
-        ver_key = parse_version(ver)
-    except Exception as e:
-        print(f"[WARN] Failed to parse semver for version '{ver}' of package '{pkg.get('name')}': {e}. Falling back to string comparison.")
-        ver_key = (ver,)
-    return (ver_key, pkgrel)
+        pkgrel = int(pkg.get("pkgrel", 1))
+    except (ValueError, TypeError):
+        pkgrel = 1
+    return (parse_version_key(ver), pkgrel)
+
+def get_package_size(pkg_path: str, pkg_info: dict) -> int:
+    """Ambil ukuran asli installer dari data/.manifest atau .PKGINFO.toml."""
+    try:
+        res = subprocess.run(
+            f"zstd -dc '{pkg_path}' | tar -xO --wildcards '*data/.manifest' 2>/dev/null",
+            shell=True, capture_output=True, text=True
+        )
+        if res.returncode == 0 and res.stdout:
+            for line in res.stdout.splitlines():
+                if ':' in line:
+                    k, v = line.split(':', 1)
+                    if k.strip().lower() in ['installersize', 'installer_size'] and v.strip().isdigit():
+                        sz = int(v.strip())
+                        if sz > 0:
+                            return sz
+    except Exception:
+        pass
+
+    pkg_meta = pkg_info.get("package", {})
+    try:
+        pkg_size = int(pkg_meta.get("size", 0))
+        if pkg_size > 1024:
+            return pkg_size
+    except (ValueError, TypeError):
+        pass
+
+    return int(os.path.getsize(pkg_path))
 
 def read_pkginfo(tetopkg_path: str) -> dict:
     """Extract .PKGINFO.toml dari dalam arsip .tetopkg (tar + zstd)."""
@@ -121,7 +149,7 @@ def main():
                     "desc": str(pkg.get("desc", "")),
                     "url": str(pkg.get("url", "")),
                     "license": str(pkg.get("license", "Unknown")),
-                    "size": int(os.path.getsize(pkg_path)),
+                    "size": get_package_size(pkg_path, info),
                     "builddate": int(pkg.get("builddate", int(time.time()))),
                     "packager": str(pkg.get("packager", "gen-index")),
                     "product_code": str(pkg.get("product_code", "")),

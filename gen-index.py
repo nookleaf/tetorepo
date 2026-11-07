@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 gen-index.py — Generate index.toml dari kumpulan file .tetopkg di suatu folder.
-Format mengikuti struct RepoIndex/RepoMeta/RepoPackage di crates/teto-repo-common/src/index.rs
+Format mengikuti struct RepoIndex/RepoMeta di crates/teto-repo/src/index.rs
 """
 import sys
 import os
@@ -18,16 +18,12 @@ try:
     from packaging.version import parse as parse_version
 except ImportError:
     def parse_version(ver_str: str):
-        """Fallback version parser extracting numeric tuple components."""
         nums = [int(n) for n in re.findall(r'\d+', str(ver_str))]
         if nums:
             return tuple(nums)
         return (str(ver_str),)
 
 def get_pkg_version_key(pkg_entry: dict):
-    """
-    Computes a comparable tuple (version_key, pkgrel) for sorting and deduplicating packages.
-    """
     pkg = pkg_entry["package"]
     ver = pkg.get("version", "0.0.0")
     pkgrel = pkg.get("pkgrel", 1)
@@ -98,9 +94,9 @@ def main():
     for pkg_path in sorted(glob.glob(os.path.join(args.repo_dir, "*.tetopkg"))):
         try:
             info = read_pkginfo(pkg_path)
-            pkg = info["package"]
+            pkg = info.get("package", {})
             deps = info.get("deps", {})
-            pkg_name = pkg["name"]
+            pkg_name = pkg.get("name", "")
 
             # Filter against srcpkgs if provided
             if valid_pkgs and pkg_name not in valid_pkgs:
@@ -119,27 +115,28 @@ def main():
             raw_packages.append({
                 "package": {
                     "name": pkg_name,
-                    "version": pkg["version"],
-                    "pkgrel": pkg.get("pkgrel", 1),
-                    "arch": pkg["arch"],
-                    "desc": pkg["desc"],
-                    "url": pkg["url"],
-                    "license": pkg["license"],
-                    "size": os.path.getsize(pkg_path),
-                    "sha256": sha256_file(pkg_path),
-                    "filename": os.path.basename(pkg_path),
-                    "builddate": pkg.get("builddate", int(time.time())),
-                    "packager": pkg.get("packager", "gen-index"),
-                    "main_exe": pkg.get("main_exe", ""),
-                    "shortcut_name": pkg.get("shortcut_name", pkg_name),
-                    "installer_type": pkg.get("installer_type", "exe"),
-                    "installer_url": pkg.get("installer_url", ""),
-                    "installer_sha256": pkg.get("installer_sha256", ""),
-                    "installer_flavor": pkg.get("installer_flavor", ""),
+                    "version": str(pkg.get("version", "1.0.0")),
+                    "pkgrel": int(pkg.get("pkgrel", 1)),
+                    "arch": str(pkg.get("arch", "x86_64")),
+                    "desc": str(pkg.get("desc", "")),
+                    "url": str(pkg.get("url", "")),
+                    "license": str(pkg.get("license", "Unknown")),
+                    "size": int(os.path.getsize(pkg_path)),
+                    "builddate": int(pkg.get("builddate", int(time.time()))),
+                    "packager": str(pkg.get("packager", "gen-index")),
+                    "product_code": str(pkg.get("product_code", "")),
+                    "main_exe": str(pkg.get("main_exe", "")),
+                    "shortcut_name": str(pkg.get("shortcut_name", pkg_name)),
+                    "installer_type": str(pkg.get("installer_type", "exe")),
+                    "installer_url": str(pkg.get("installer_url", "")),
+                    "installer_sha256": str(pkg.get("installer_sha256", "")),
+                    "installer_flavor": str(pkg.get("installer_flavor", "")),
                 },
                 "deps": {
-                    "depends": deps.get("depends", []),
+                    "requires": deps.get("requires", deps.get("depends", [])),
+                    "optional": deps.get("optional", []),
                     "conflicts": deps.get("conflicts", []),
+                    "replaces": deps.get("replaces", []),
                     "provides": deps.get("provides", []),
                 },
             })
@@ -166,9 +163,8 @@ def main():
                 filtered_packages.append(highest)
                 print(f":: Deduplicating '{name}': keeping version {highest['package']['version']} (rel {highest['package']['pkgrel']})")
                 for p in pruned:
-                    print(f"   -> Dropping older version {p['package']['version']} (rel {p['package']['pkgrel']}) from index")
                     if args.prune_files:
-                        p_file = os.path.join(args.repo_dir, p["package"]["filename"])
+                        p_file = os.path.join(args.repo_dir, f"{p['package']['name']}-{p['package']['version']}-{p['package']['pkgrel']}-{p['package']['arch']}.tetopkg")
                         if os.path.isfile(p_file):
                             try:
                                 os.remove(p_file)
@@ -180,13 +176,15 @@ def main():
     filtered_packages.sort(key=lambda p: p["package"]["name"])
 
     repo_url = args.repo_url.rstrip("/") + "/"
+    # Format struct RepoIndex dari crates/teto-repo/src/index.rs:
+    # pub struct RepoIndex { pub meta: RepoMeta, pub packages: Vec<PackageInfo> }
+    # pub struct RepoMeta { pub name: String, pub description: String, pub url: String, pub generated: i64 }
     index_data = {
-        "repo": {
+        "meta": {
             "name": args.repo_name,
-            "desc": args.repo_desc,
+            "description": args.repo_desc,
             "url": repo_url,
-            "packages_count": len(filtered_packages),
-            "updated_at": int(time.time()),
+            "generated": int(time.time()),
         },
         "packages": filtered_packages,
     }

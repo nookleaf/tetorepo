@@ -6,6 +6,7 @@ on:
       - "srcpkgs/**/template"
       - ".github/workflows/build.yml"
       - "tetopkg-src.sh"
+      - "gen-index.py"
   workflow_dispatch:
     inputs:
       pkgname:
@@ -17,7 +18,8 @@ jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
-      packages: ${{ steps.detect.outputs.packages }}
+      chunks: ${{ steps.detect.outputs.chunks }}
+      total: ${{ steps.detect.outputs.total }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,40 +30,61 @@ jobs:
           if [ "${{ github.event.inputs.pkgname }}" = "all" ] || git log -1 --pretty=%B | grep -qi -E '\[build[- ]all\]|\[all\]'; then
             echo "::notice ::Building all packages in repository"
             CHANGED=$(find srcpkgs -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | sort -u | jq -R -s -c 'split("\n")[:-1]')
-            echo "packages=${CHANGED}" >> "$GITHUB_OUTPUT"
           elif [ -n "${{ github.event.inputs.pkgname }}" ]; then
-            echo "packages=[\"${{ github.event.inputs.pkgname }}\"]" >> "$GITHUB_OUTPUT"
+            CHANGED="[\"${{ github.event.inputs.pkgname }}\"]"
           else
             if git rev-parse HEAD~1 >/dev/null 2>&1; then
               DIFF_RANGE="HEAD~1 HEAD"
             else
-              # commit pertama, gak ada parent — anggap semua template sebagai "berubah"
               DIFF_RANGE="--root HEAD"
             fi
             CHANGED=$(git diff --diff-filter=d --name-only $DIFF_RANGE -- 'srcpkgs/*/template' \
               | sed -E 's#srcpkgs/([^/]+)/template#\1#' | sort -u | jq -R -s -c 'split("\n")[:-1]')
             if [ "$CHANGED" = "[]" ]; then
-              # fallback terakhir: list semua srcpkgs yang ada
               CHANGED=$(find srcpkgs -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | sort -u | jq -R -s -c 'split("\n")[:-1]')
             fi
-            echo "packages=${CHANGED}" >> "$GITHUB_OUTPUT"
           fi
+
+          echo "Detected raw packages: $CHANGED"
+
+          # Chunking: split into chunks of 25 packages to never exceed GitHub Actions 256 matrix limit
+          CHUNKS=$(python3 -c "
+          import json, sys
+          pkgs = json.loads('''$CHANGED''')
+          if not pkgs:
+              print('[]')
+              sys.exit(0)
+          chunk_size = 25
+          chunks = [pkgs[i:i + chunk_size] for i in range(0, len(pkgs), chunk_size)]
+          print(json.dumps(chunks))
+          ")
+
+          TOTAL=$(python3 -c "
+          import json
+          pkgs = json.loads('''$CHANGED''')
+          print(len(pkgs))
+          ")
+
+          echo "chunks=${CHUNKS}" >> "$GITHUB_OUTPUT"
+          echo "total=${TOTAL}" >> "$GITHUB_OUTPUT"
 
   build:
     needs: detect
-    if: needs.detect.outputs.packages != '[]'
+    if: needs.detect.outputs.chunks != '[]' && needs.detect.outputs.total != '0'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
-        pkg: ${{ fromJson(needs.detect.outputs.packages) }}
+        chunk: ${{ fromJson(needs.detect.outputs.chunks) }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install deps
-        run: sudo apt-get update && sudo apt-get install -y p7zip-full jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y p7zip-full jq
+          pip install awscli --break-system-packages --quiet
 
       - name: Download teto-pack
         run: |
@@ -70,25 +93,29 @@ jobs:
           tar -xzf tetopkg-linux-x86_64.tar.gz
           chmod +x teto-pack
 
-      - name: Build package
-        run: |
-          if [ -f "srcpkgs/${{ matrix.pkg }}/template" ]; then
-            chmod +x tetopkg-src.sh
-            ./tetopkg-src.sh "${{ matrix.pkg }}"
-          else
-            echo "::notice ::Template srcpkgs/${{ matrix.pkg }}/template was deleted; skipping build step."
-          fi
-
-      - name: Upload to R2
+      - name: Build & Upload chunk packages
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
         run: |
-          pip install awscli --break-system-packages --quiet
-          FILE=$(find build -name '*.tetopkg')
-          aws s3 cp "$FILE" "s3://${{ secrets.R2_BUCKET }}/x86_64/packages/$(basename "$FILE")" \
-            --endpoint-url "${{ secrets.R2_ENDPOINT }}"
+          chmod +x tetopkg-src.sh
+          for pkg in ${{ join(matrix.chunk, ' ') }}; do
+            if [ -f "srcpkgs/$pkg/template" ]; then
+              echo "::group::Building $pkg"
+              ./tetopkg-src.sh "$pkg"
+              FILE=$(find build -name "${pkg}-*.tetopkg" | head -n 1)
+              if [ -n "$FILE" ]; then
+                aws s3 cp "$FILE" "s3://${{ secrets.R2_BUCKET }}/x86_64/packages/$(basename "$FILE")" \
+                  --endpoint-url "${{ secrets.R2_ENDPOINT }}"
+              else
+                echo "[WARN] No .tetopkg file produced for $pkg"
+              fi
+              echo "::endgroup::"
+            else
+              echo "::notice ::Template srcpkgs/$pkg/template was deleted; skipping build step."
+            fi
+          done
 
   reindex:
     needs: build

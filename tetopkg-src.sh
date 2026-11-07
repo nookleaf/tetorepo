@@ -19,10 +19,13 @@ THRESHOLD_BYTES=104857600 # 100 MB
 # Cek Content-Length secara cepat via HEAD request
 REMOTE_SIZE=$(curl -sIL --connect-timeout 15 -A "Mozilla/5.0" "$distfiles" 2>/dev/null | tr -d '\r' | awk '/^[Cc]ontent-[Ll]ength:/ {print $2}' | tail -n 1 || echo "")
 REMOTE_SIZE="${REMOTE_SIZE//[!0-9]/}"
+REMOTE_SIZE="${REMOTE_SIZE:-0}"
 
+PAYLOAD_SIZE=0
 IS_MANIFEST_ONLY=0
+INSTALLER_SHA256="skip"
 
-if [ -n "$REMOTE_SIZE" ] && [ "$REMOTE_SIZE" -gt "$THRESHOLD_BYTES" ] 2>/dev/null; then
+if [ "${REMOTE_SIZE:-0}" -gt "$THRESHOLD_BYTES" ] 2>/dev/null; then
     echo ":: Remote distfile is >100MB (${REMOTE_SIZE} bytes). Using Manifest-Only packaging mode (no binary payload bundled)."
     IS_MANIFEST_ONLY=1
     INSTALLER_SHA256="skip"
@@ -69,9 +72,9 @@ fi
 TYPE="${installer_type:-exe}"
 
 ACTUAL_SIZE=0
-if [ -n "$PAYLOAD_SIZE" ] && [ "$PAYLOAD_SIZE" -gt 0 ] 2>/dev/null; then
+if [ "${PAYLOAD_SIZE:-0}" -gt 0 ] 2>/dev/null; then
     ACTUAL_SIZE="$PAYLOAD_SIZE"
-elif [ -n "$REMOTE_SIZE" ] && [ "$REMOTE_SIZE" -gt 0 ] 2>/dev/null; then
+elif [ "${REMOTE_SIZE:-0}" -gt 0 ] 2>/dev/null; then
     ACTUAL_SIZE="$REMOTE_SIZE"
 fi
 
@@ -161,7 +164,7 @@ fi
     --output "${pkgname}-${version}-${revision}-${arch}.tetopkg"
 
 PKG_FILE="${pkgname}-${version}-${revision}-${arch}.tetopkg"
-if [ "$IS_MANIFEST_ONLY" -eq 1 ] && [ "$ACTUAL_SIZE" -gt 0 ] 2>/dev/null && [ -f "$PKG_FILE" ]; then
+if [ "$IS_MANIFEST_ONLY" -eq 1 ] && [ "${ACTUAL_SIZE:-0}" -gt 0 ] 2>/dev/null && [ -f "$PKG_FILE" ]; then
     echo ":: Updating .PKGINFO.toml size to actual installer size: ${ACTUAL_SIZE} bytes..."
     python3 -c "
 import tarfile, io, os, re, subprocess

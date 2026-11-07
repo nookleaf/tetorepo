@@ -103,13 +103,16 @@ jobs:
           for pkg in ${{ join(matrix.chunk, ' ') }}; do
             if [ -f "srcpkgs/$pkg/template" ]; then
               echo "::group::Building $pkg"
-              ./tetopkg-src.sh "$pkg"
-              FILE=$(find build -name "${pkg}-*.tetopkg" | head -n 1)
-              if [ -n "$FILE" ]; then
-                aws s3 cp "$FILE" "s3://${{ secrets.R2_BUCKET }}/x86_64/packages/$(basename "$FILE")" \
-                  --endpoint-url "${{ secrets.R2_ENDPOINT }}"
+              if ./tetopkg-src.sh "$pkg"; then
+                FILE=$(find build -name "${pkg}-*.tetopkg" | head -n 1)
+                if [ -n "$FILE" ]; then
+                  aws s3 cp "$FILE" "s3://${{ secrets.R2_BUCKET }}/x86_64/packages/$(basename "$FILE")" \
+                    --endpoint-url "${{ secrets.R2_ENDPOINT }}"
+                else
+                  echo "[WARN] No .tetopkg file produced for $pkg"
+                fi
               else
-                echo "[WARN] No .tetopkg file produced for $pkg"
+                echo "::warning ::Building $pkg failed (download/build error), continuing to next package..."
               fi
               echo "::endgroup::"
             else

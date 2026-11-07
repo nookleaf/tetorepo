@@ -15,7 +15,10 @@ mkdir -p "$WORKDIR/buildroot"
 cd "$WORKDIR"
 
 echo ":: Downloading distfile..."
-curl -fL --retry 5 --retry-delay 3 --retry-all-errors -C - -o payload.bin "$distfiles"
+if ! curl -fL --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 20 --max-time 600 -C - -o payload.bin "$distfiles"; then
+    echo "Error: Gagal mendownload distfile dari $distfiles" >&2
+    exit 1
+fi
 
 # 1. Validasi hasil download
 if stat -c%s payload.bin >/dev/null 2>&1; then
